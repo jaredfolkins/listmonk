@@ -276,11 +276,17 @@ func (m *Manager) SpawnWorkers() {
 					err := m.messengers[msg.Campaign.MessengerID].Push(
 						msg.from, []string{msg.to}, msg.Campaign.Subject, msg.body, nil)
 					if err != nil {
-						m.logger.Printf("error sending message in campaign %s: %v", msg.Campaign.Name, err)
+						m.logger.Printf("soft fail: error sending message in Campain.Name [%s]: Err [%v], will retry...", msg.Campaign.Name, err)
 
-						select {
-						case m.campMsgErrorQueue <- msgError{camp: msg.Campaign, err: err}:
-						default:
+						err2 := m.messengers[msg.Campaign.MessengerID].Push(
+							msg.from, []string{msg.to}, msg.Campaign.Subject, msg.body, nil)
+
+						if err2 != nil {
+							m.logger.Printf("hard fail: error sending message in Campain.Name [%s]: Err [%v]", msg.Campaign.Name, err2)
+							select {
+							case m.campMsgErrorQueue <- msgError{camp: msg.Campaign, err: err2}:
+							default:
+							}
 						}
 					}
 
@@ -289,7 +295,14 @@ func (m *Manager) SpawnWorkers() {
 					err := m.messengers[msg.Messenger].Push(
 						msg.From, msg.To, msg.Subject, msg.Body, nil)
 					if err != nil {
-						m.logger.Printf("error sending message '%s': %v", msg.Subject, err)
+						m.logger.Printf("soft fail: error sending Message '%s': %v", msg.Subject, err)
+
+						err2 := m.messengers[msg.Messenger].Push(
+							msg.From, msg.To, msg.Subject, msg.Body, nil)
+
+						if err2 != nil {
+							m.logger.Printf("hard fail: error sending Message '%s': %v", msg.Subject, err2)
+						}
 					}
 				}
 			}
